@@ -1,0 +1,182 @@
+---
+ - hosts: scenario1
+   become: yes
+   vars:
+    dBServername: localhost
+    dBUsername: admin
+    dBPassword: 123
+    dBName: hospital_db
+
+   tasks:
+    - name: packages | ensure apt list dir exists
+      file:
+        path: /var/lib/apt/lists/
+        state: directory
+        mode: 0755
+
+    - name: Update cache
+      apt:
+        update_cache: yes
+
+    - name: Remove existing apache2 package
+      apt:
+        name: apache2
+        state: absent
+
+    - name: Install apache deps
+      apt:
+        pkg:
+        - build-essential
+        - libssl-dev
+        - libexpat-dev
+        - libpcre3-dev
+        - libapr1-dev
+        - libaprutil1-dev
+
+    - name: Download apache source files
+      get_url:
+        url: http://archive.apache.org/dist/httpd/httpd-2.4.49.tar.gz
+        dest: /root/
+
+    - name: Extract [gzip]
+      command: gzip -d httpd-2.4.49.tar.gz
+      args:
+        chdir: /root/
+
+    - name: Extract [tar]
+      command: tar xvf httpd-2.4.49.tar
+      args:
+        chdir: /root/
+
+    - name: Configuration
+      command: ./configure --prefix=/usr/local/apache2.4.49
+      args:
+        chdir: /root/httpd-2.4.49/
+
+    - name: Compile
+      command: make
+      args:
+        chdir: /root/httpd-2.4.49/
+  
+    - name: Install
+      command: make install
+      args:
+        chdir: /root/httpd-2.4.49/
+
+    - name: Start apache
+      command: ./apachectl -k start
+      args:
+        chdir: /usr/local/apache2.4.49/bin/
+
+    - name: Install PHP
+      apt:
+        name: php7.2
+        state: present
+
+    - name: Install Mysql
+      apt:
+        name: php7.2-mysql
+        state: present
+
+    - name: Install GIT
+      apt:
+        name: git
+        state: present
+
+    - name: Install Mysql server
+      apt:
+        name: default-mysql-server
+        state: present
+
+    - name: Install Mysql client
+      apt: 
+        name: default-mysql-client
+        state: present
+
+    - name: Install PyMySQL
+      apt:
+        name: python3-pymysql
+        state: present
+
+    - name: Install MySQLdb
+      apt:
+        name: python2.7-mysqldb
+        state: present
+
+    - name: Get files from git repository 
+      git: 
+        repo: "https://github.com/bernardas/netsec-polygon.git"
+        version: main
+        dest: /root/tmp
+        force: yes 
+
+    - name: Start MySQL
+      service:
+        name: mysql
+        enabled: yes
+        state: started
+
+    - name: Create database
+      mysql_db:
+        name: "{{ dBName }}"
+        login_host: localhost
+        login_user: "root"
+        login_password: ""
+        state: present
+
+
+    - name: Import database
+      community.mysql.mysql_db:
+        name: hospital_db
+        state: import
+        target: /root/tmp/scenario1/db/database.sql
+
+    - name: Create database user
+      community.mysql.mysql_user:
+        name: admin
+        host: "%"
+        password: 123
+        priv: '*.*:ALL'
+        state: present
+
+    - name: Insert DB connection info
+      blockinfile:
+        path: /root/tmp/scenario1/web/includes/dbh.inc.php
+        marker: "// {mark} ANSIBLE MANAGED BLOCK"
+        insertafter: "<?php"
+        block: |
+          $dBServername = "{{ dBServername }}";
+          $dBUsername = "{{ dBUsername }}";
+          $dBPassword = "{{ dBPassword }}";
+          $dBName = "{{ dBName }}";
+
+    - name: Delete static files from www
+      file:
+        path: /var/www/html/index.html
+        state: absent
+
+    - name: Copy files from tmp to html
+      command: bash -c 'mv /root/tmp/scenario1/web/* /var/www/html/'
+
+    - name: Remove temporary files
+      file:
+        path: /root/tmp/
+        state: absent
+
+    - name: Change directory permissions
+      file:
+        path: /var/www/html
+        state: directory
+        group: www-data
+        recurse: yes
+        mode: g+rx
+
+    - name: 13 Restart MySQL
+      service:
+        name: mysql
+        enabled: yes
+        state: restarted
+
+    - name: Restart Machine
+      reboot:
+        reboot_timeout: 600
