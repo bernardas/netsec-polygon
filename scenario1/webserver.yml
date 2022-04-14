@@ -4,7 +4,7 @@
    vars:
     dBServername: localhost
     dBUsername: admin
-    dBPassword: 123
+    dBPassword: '123'
     dBName: hospital_db
 
    tasks:
@@ -17,11 +17,6 @@
     - name: Update cache
       apt:
         update_cache: yes
-
-    - name: Remove existing apache2 package
-      apt:
-        name: apache2
-        state: absent
 
     - name: Install apache deps
       apt:
@@ -116,28 +111,33 @@
         enabled: yes
         state: started
 
-    - name: Create database
-      mysql_db:
-        name: "{{ dBName }}"
-        login_host: localhost
-        login_user: "root"
-        login_password: ""
-        state: present
+    - name: Add user to mysql server
+      mysql_user:
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+        name: "{{ dBUsername }}"
+        password: "{{ dBPassword }}"
+        priv: "*.*:ALL"
+  
+    - name: Restart MySQL
+      service:
+        name: mysql
+        enabled: yes
+        state: restarted
 
+    - name: Create a new database
+      community.mysql.mysql_db:
+        login_user: "{{ dBUsername }}"
+        login_password: "{{ dBPassword }}"
+        name: "{{ dBName }}"
+        state: present
 
     - name: Import database
       community.mysql.mysql_db:
+        login_user: "{{ dBUsername }}"
+        login_password: "{{ dBPassword }}"
         name: hospital_db
         state: import
         target: /root/tmp/scenario1/db/database.sql
-
-    - name: Create database user
-      community.mysql.mysql_user:
-        name: admin
-        host: "%"
-        password: 123
-        priv: '*.*:ALL'
-        state: present
 
     - name: Insert DB connection info
       blockinfile:
@@ -149,14 +149,22 @@
           $dBUsername = "{{ dBUsername }}";
           $dBPassword = "{{ dBPassword }}";
           $dBName = "{{ dBName }}";
+      
+    - name: Copy vulenrable Apache config
+      copy:
+        src: ../vulnerable-httpd.conf
+        dest: /usr/local/apache2.4.49/conf/httpd.conf
+        owner: root
+        group: root
+        mode: '0644'
 
     - name: Delete static files from www
       file:
-        path: /var/www/html/index.html
+        path: /usr/local/apache2.4.49/htdocs/index.html
         state: absent
 
     - name: Copy files from tmp to html
-      command: bash -c 'mv /root/tmp/scenario1/web/* /var/www/html/'
+      command: bash -c 'mv /root/tmp/scenario1/web/* /usr/local/apache2.4.49/htdocs/'
 
     - name: Remove temporary files
       file:
@@ -165,18 +173,20 @@
 
     - name: Change directory permissions
       file:
-        path: /var/www/html
+        path: /usr/local/apache2.4.49/htdocs
         state: directory
         group: www-data
         recurse: yes
         mode: g+rx
 
-    - name: 13 Restart MySQL
+    - name: Restart apache
+      command: ./apachectl -k restart
+      args:
+        chdir: /usr/local/apache2.4.49/bin/
+
+    - name: Restart MySQL
       service:
         name: mysql
         enabled: yes
         state: restarted
-
-    - name: Restart Machine
-      reboot:
-        reboot_timeout: 600
+        
