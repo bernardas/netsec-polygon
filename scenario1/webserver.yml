@@ -44,7 +44,7 @@
         chdir: /root/
 
     - name: Configuration
-      command: ./configure --prefix=/usr/local/apache2.4.49
+      command: ./configure --prefix=/usr/local/apache2.4.49 --with-mpm=prefork
       args:
         chdir: /root/httpd-2.4.49/
 
@@ -189,4 +189,14 @@
         name: mysql
         enabled: yes
         state: restarted
+
+    - name: Disable default Apache2
+      service:
+        name: apache2
+        enabled: no
+        state: stopped
+
+    - name: Reboot
+      reboot:
+        reboot_timeout: 3600
         
