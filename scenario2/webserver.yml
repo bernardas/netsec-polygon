@@ -97,7 +97,7 @@
 
     - name: Insert DB connection info
       blockinfile:
-        path: /root/tmp/scenario1/web/includes/dbh.inc.php
+        path: /root/tmp/scenario2/web/db.php
         marker: "// {mark} ANSIBLE MANAGED BLOCK"
         insertafter: "<?php"
         block: |
@@ -125,7 +125,7 @@
         state: absent
 
     - name: Copy files from tmp to html
-      command: bash -c 'mv /root/tmp/scenario1/web/* /usr/local/apache2.4.49/htdocs/'
+      command: bash -c 'mv /root/tmp/scenario2/web/* /usr/local/apache2.4.49/htdocs/'
 
     - name: Remove temporary files
       file:

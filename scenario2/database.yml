@@ -61,7 +61,14 @@
         name: "{{ dBUsername }}"
         password: "{{ dBPassword }}"
         priv: "*.*:ALL"
-  
+
+    - name: Insert wildcarded bind-address
+      blockinfile:
+        path: /etc/mysql/my.cnf
+        block: |
+          [mysqld]
+          bind-address    = 0.0.0.0
+
     - name: Restart MySQL
       service:
         name: mysql
@@ -81,7 +88,7 @@
         login_password: "{{ dBPassword }}"
         name: hospital_db
         state: import
-        target: /root/tmp/scenario1/db/database.sql
+        target: /root/tmp/scenario2/db/database.sql
 
     - name: Restart MySQL
       service:
