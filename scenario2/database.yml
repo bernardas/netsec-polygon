@@ -1,0 +1,90 @@
+---
+ - hosts: scenario2_DB
+   become: yes
+   vars:
+    dBUsername: admin
+    dBPassword: '123'
+    dBName: hospital_db
+
+   tasks:
+    - name: packages | ensure apt list dir exists
+      file:
+        path: /var/lib/apt/lists/
+        state: directory
+        mode: 0755
+
+    - name: Update cache
+      apt:
+        update_cache: yes
+
+    - name: Install GIT
+      apt:
+        name: git
+        state: present
+
+    - name: Install Mysql server
+      apt:
+        name: default-mysql-server
+        state: present
+
+    - name: Install Mysql client
+      apt: 
+        name: default-mysql-client
+        state: present
+
+    - name: Install PyMySQL
+      apt:
+        name: python3-pymysql
+        state: present
+
+    - name: Install MySQLdb
+      apt:
+        name: python2.7-mysqldb
+        state: present
+
+    - name: Get files from git repository 
+      git: 
+        repo: "https://github.com/bernardas/netsec-polygon.git"
+        version: main
+        dest: /root/tmp
+        force: yes 
+
+    - name: Start MySQL
+      service:
+        name: mysql
+        enabled: yes
+        state: started
+
+    - name: Add user to mysql server
+      mysql_user:
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+        name: "{{ dBUsername }}"
+        password: "{{ dBPassword }}"
+        priv: "*.*:ALL"
+  
+    - name: Restart MySQL
+      service:
+        name: mysql
+        enabled: yes
+        state: restarted
+
+    - name: Create a new database
+      community.mysql.mysql_db:
+        login_user: "{{ dBUsername }}"
+        login_password: "{{ dBPassword }}"
+        name: "{{ dBName }}"
+        state: present
+
+    - name: Import database
+      community.mysql.mysql_db:
+        login_user: "{{ dBUsername }}"
+        login_password: "{{ dBPassword }}"
+        name: hospital_db
+        state: import
+        target: /root/tmp/scenario1/db/database.sql
+
+    - name: Restart MySQL
+      service:
+        name: mysql
+        enabled: yes
+        state: restarted

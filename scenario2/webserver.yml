@@ -1,0 +1,146 @@
+---
+ - hosts: scenario2_WEB
+   become: yes
+   vars:
+    dBServername: 10.0.1.159
+    dBUsername: admin
+    dBPassword: '123'
+    dBName: hospital_db
+
+   tasks:
+    - name: packages | ensure apt list dir exists
+      file:
+        path: /var/lib/apt/lists/
+        state: directory
+        mode: 0755
+
+    - name: Update cache
+      apt:
+        update_cache: yes
+
+    - name: Install apache deps
+      apt:
+        pkg:
+        - build-essential
+        - libssl-dev
+        - libexpat-dev
+        - libpcre3-dev
+        - libapr1-dev
+        - libaprutil1-dev
+
+    - name: Download apache source files
+      get_url:
+        url: http://archive.apache.org/dist/httpd/httpd-2.4.49.tar.gz
+        dest: /root/
+
+    - name: Extract [gzip]
+      command: gzip -d httpd-2.4.49.tar.gz
+      args:
+        chdir: /root/
+
+    - name: Extract [tar]
+      command: tar xvf httpd-2.4.49.tar
+      args:
+        chdir: /root/
+
+    - name: Configuration
+      command: ./configure --prefix=/usr/local/apache2.4.49 --with-mpm=prefork
+      args:
+        chdir: /root/httpd-2.4.49/
+
+    - name: Compile
+      command: make
+      args:
+        chdir: /root/httpd-2.4.49/
+  
+    - name: Install
+      command: make install
+      args:
+        chdir: /root/httpd-2.4.49/
+
+    - name: Start apache
+      command: ./apachectl -k start
+      args:
+        chdir: /usr/local/apache2.4.49/bin/
+
+    - name: Install PHP
+      apt:
+        name: php7.2
+        state: present
+
+    - name: Install Mysql
+      apt:
+        name: php7.2-mysql
+        state: present
+
+    - name: Install GIT
+      apt:
+        name: git
+        state: present
+
+    - name: Install Mysql client
+      apt: 
+        name: default-mysql-client
+        state: present
+
+    - name: Install PyMySQL
+      apt:
+        name: python3-pymysql
+        state: present
+
+    - name: Get files from git repository 
+      git: 
+        repo: "https://github.com/bernardas/netsec-polygon.git"
+        version: main
+        dest: /root/tmp
+        force: yes
+
+    - name: Insert DB connection info
+      blockinfile:
+        path: /root/tmp/scenario1/web/includes/dbh.inc.php
+        marker: "// {mark} ANSIBLE MANAGED BLOCK"
+        insertafter: "<?php"
+        block: |
+          $dBServername = "{{ dBServername }}";
+          $dBUsername = "{{ dBUsername }}";
+          $dBPassword = "{{ dBPassword }}";
+          $dBName = "{{ dBName }}";
+      
+    - name: Copy vulenrable Apache config
+      copy:
+        src: ../vulnerable-httpd.conf
+        dest: /usr/local/apache2.4.49/conf/httpd.conf
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Change permissions of libphp7.2.so
+      file:
+        path: /usr/lib/apache2/modules/libphp7.2.so
+        mode: '0777'
+
+    - name: Delete static files from www
+      file:
+        path: /usr/local/apache2.4.49/htdocs/index.html
+        state: absent
+
+    - name: Copy files from tmp to html
+      command: bash -c 'mv /root/tmp/scenario1/web/* /usr/local/apache2.4.49/htdocs/'
+
+    - name: Remove temporary files
+      file:
+        path: /root/tmp/
+        state: absent
+
+    - name: Change directory permissions
+      file:
+        path: /usr/local/apache2.4.49/htdocs
+        state: directory
+        group: www-data
+        recurse: yes
+        mode: g+rx
+
+    - name: Restart apache
+      command: ./apachectl -k restart
+      args:
+        chdir: /usr/local/apache2.4.49/bin/
