@@ -158,6 +158,11 @@
         group: root
         mode: '0644'
 
+    - name: Change permissions of libphp7.2.so
+      file:
+        path: /usr/lib/apache2/modules/libphp7.2.so
+        mode: '0777'
+
     - name: Delete static files from www
       file:
         path: /usr/local/apache2.4.49/htdocs/index.html
